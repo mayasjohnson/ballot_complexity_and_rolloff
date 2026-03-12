@@ -1,0 +1,71 @@
+---
+title: "Assignment 9"
+output: html_document
+date: "2026-03-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Import required libraries 
+library(tidyverse)
+library(ggplot2)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+## Assignment 9 - Determinants II and Project Proposal
+
+### Preliminary Data Analysis 
+
+#### Ballot Complexity and Voter Turnout
+
+Using data from CEDA (California Elections Data Archive) 2024 Dataset 
+
+##### Import the data 
+```{r}
+setwd("/Users/mayajohnson/Desktop")
+measures_2024 <- read_csv("Measures2024.csv", show_col_types = FALSE)
+candidates_2024 <- read_csv("Candidates2024.csv", show_col_types = FALSE)
+
+head(ca_2024)
+```
+
+##### Find the ballot complexity (how many types per county for each election (grouped by date))
+ - To find ballot complexity/length, I grouped the ballots by County and Date of election, and counted for each how many distinct ID's there are for each County/Date. 
+ 
+```{r}
+ballot_length <- ca_2024 %>%
+  group_by(CNTYNAME, DATE) %>%
+  summarise(ballot_length = n_distinct(MeasID))
+```
+
+##### Find the voter turnout for each election (grouped by date) and county 
+- To find voter turnout, I counted the number of votes per County/Date group. 
+```{r}
+# Extract turnout from the candidates data set 
+turnout <- candidates_2024 %>%
+  group_by(CNTYNAME, DATE) %>%
+  summarise(turnout = max(TOTVOTES, na.rm = TRUE))
+```
+
+##### Combine the data and make the scatterplot 
+```{r}
+# Combine the data sets 
+analysis_df <- left_join(ballot_length, turnout, by = c("CNTYNAME","DATE")) %>% filter(turnout < 2000000)   # I trimmed this to remove a very large outlier 
+
+# Make the scatter plot 
+ggplot(analysis_df, aes(x = ballot_length, y = turnout)) +
+  geom_point(alpha = 0.6) + # I made the dots transparent because a lot overlapped 
+  geom_smooth(method=lm) +
+  scale_y_log10() + # The values were all over the place for voter turnout so make it log values instead helps make the graph trend more readable 
+  labs(
+    title = "Ballot Complexity and Voter Turnout",
+    subtitle = "In Various 2024 California Ballots", 
+    x = "Number of Ballot Measures",
+    y = "Total Ballots Cast (Log Values)"
+  )
+```
+

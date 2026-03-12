@@ -1,0 +1,61 @@
+---
+title: "Analysis Continued"
+output: html_document
+date: "2026-03-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Import required libraries 
+library(tidyverse)
+library(ggplot2)
+```
+
+## Roll-off and complexity
+Using data from CEDA (California Elections Data Archive) 2024 Dataset 
+
+##### Import the data 
+```{r}
+setwd("/Users/mayajohnson/Desktop")
+measures_2024 <- read_csv("Measures2024.csv", show_col_types = FALSE)
+candidates_2024 <- read_csv("Candidates2024.csv", show_col_types = FALSE)
+
+head(ca_2024)
+```
+
+```{r}
+ballot_length <- ca_2024 %>%
+  group_by(CNTYNAME, DATE) %>%
+  summarise(ballot_length = n_distinct(MeasID))
+```
+
+```{r}
+top_votes <- candidates_2024 %>%
+  group_by(CNTYNAME, DATE) %>%
+  summarise(top_votes = max(Newtotvotes, na.rm = TRUE))
+
+measure_votes <- measures_2024 %>%
+  group_by(CNTYNAME, DATE) %>%
+  summarise(measure_votes = mean(TOTAL, na.rm = TRUE))
+
+analysis_df <- left_join(top_votes, measure_votes,
+                         by = c("CNTYNAME", "DATE"))
+
+analysis_df <- analysis_df %>%
+  mutate(rolloff = (top_votes - measure_votes) / top_votes)
+
+analysis_df <- analysis_df %>% filter(rolloff >= 0)
+
+analysis_df <- left_join(analysis_df, ballot_length, by = c("CNTYNAME","DATE")) 
+
+ggplot(analysis_df, aes(x = ballot_length, y = rolloff)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(
+    title = "Ballot Complexity and Ballot Roll-Off",
+    x = "Number of Ballot Measures",
+    y = "Roll-Off Rate"
+  )
+
+```
