@@ -1,0 +1,317 @@
+---
+title: "Analysis pass/fail"
+output: html_document
+date: "2026-04-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Ballot Complexity and Ballot Success (Pass/Fail)
+
+The CEDA codebook defines OUTCOME as 1 = Pass and 2 = Fail, while PASSFAIL gives the more detailed threshold-specific result.
+
+
+## General Findings 
+
+```{r}
+library(tidyverse)
+library(scales)
+library(readxl)
+```
+
+
+### Load and Merge Datasets 
+
+```{r}
+
+setwd("/Users/mayajohnson/Desktop")
+
+# Load CEDA measures dataset from 2024 
+measures_2024 <- read_csv("Measures2024.csv", show_col_types = FALSE)
+
+# Load voter registration info from CA in 2024 
+registration <- read_excel("voter_registration_full.xlsx")
+
+registration <- registration %>%
+  mutate(county = str_to_upper(county))
+
+# Add the total registered voter count per county to the measures dataset 
+measures_2024 <- measures_2024 %>%
+  mutate(CNTYNAME = str_to_upper(CNTYNAME)) %>%
+  left_join(registration %>% select(county, total_registered),
+            by = c("CNTYNAME" = "county"))
+
+summary(measures_2024$total_registered)
+
+# Double-check the merge worked 
+measures_2024 %>%
+  select(CNTYNAME, total_registered) %>%
+  distinct() %>%
+  head()
+
+# Add a column in the measures dataset for the turnout percentage 
+measures_2024 <- measures_2024 %>%
+  mutate(
+    turnout_pct = TOTAL / total_registered
+  )
+```
+
+```{r}
+
+measures_2024 <- measures_2024 %>%
+  mutate(
+    turnout = TOTAL,
+    word_count = str_count(BALQUEST, "\\S+"),
+    outcome_label = case_when(
+      outcome == 1 ~ "Pass",
+      outcome == 2 ~ "Fail",
+      TRUE ~ NA_character_
+    ),
+    outcome = factor(outcome, levels = c("Pass", "Fail")),
+    req_label = case_when(
+      REQ == "M" ~ "Majority",
+      REQ == "F" ~ "55%",
+      REQ == "T" ~ "Two-thirds",
+      TRUE ~ REQ
+    ),
+    jurisdiction = case_when(
+      JUR == 1 ~ "County",
+      JUR == 2 ~ "City",
+      JUR == 3 ~ "School District",
+      TRUE ~ "Other"
+    )
+  )
+```
+
+## Plot general pass vs. fail 
+
+```{r}
+
+measures_2024 %>%
+  filter(!is.na(outcome_label)) %>%
+  ggplot(aes(x = outcome_label, fill = outcome_label)) +
+  geom_bar(show.legend = FALSE) +
+  labs(
+    title = "2024 California Local Ballot Measures: Pass vs. Fail",
+    x = "Outcome",
+    y = "Number of Measures"
+  ) +
+  theme_minimal()
+
+```
+
+## Plot Passing vs. Requirement Threshold to Pass  
+```{r}
+measures_2024 %>%
+  filter(!is.na(outcome_label), !is.na(req_label)) %>%
+  group_by(req_label) %>%
+  summarise(
+    total_measures = n(),
+    passed = sum(outcome_label == "Pass"),
+    passage_rate = passed / total_measures,
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = req_label, fill = req_label, y = passage_rate)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Passage Rate by Required Approval Threshold",
+    x = "Required Threshold",
+    y = "Passage Rate"
+  ) +
+  theme_minimal()
+```
+
+## Plot Passage Rate by Jurisdiction Type 
+```{r}
+
+measures_2024 %>%
+  filter(!is.na(outcome_label), !is.na(jurisdiction)) %>%
+  group_by(jurisdiction) %>%
+  summarise(
+    n = n(),
+    passage_rate = mean(outcome_label == "Pass"),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = jurisdiction, y = passage_rate)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Passage Rate by Jurisdiction Type",
+    x = "Jurisdiction",
+    y = "Passage Rate"
+  ) +
+  theme_minimal()
+
+```
+
+
+## Ballot question length by Pass/Fail outcome 
+```{r}
+measures_2024 %>%
+  filter(!is.na(outcome_label), !is.na(word_count)) %>%
+  ggplot(aes(x = outcome_label, y = word_count, fill = outcome_label)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(
+    title = "Ballot Question Length by Outcome",
+    x = "Outcome",
+    y = "Word Count"
+  ) +
+  theme_minimal()
+
+ggplot(measures_2024, aes(x = outcome_label, y = word_count, fill = outcome_label)) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~ jurisdiction) +
+  labs(
+    title = "Ballot Question Length by Outcome, by Jurisdiction",
+    x = "Outcome",
+    y = "Word Count"
+  ) +
+  theme_minimal()
+```
+
+
+
+```{r}
+measures_2024 %>%
+  filter(!is.na(outcome_label), !is.na(turnout_pct)) %>%
+  ggplot(aes(x = outcome_label, y = turnout_pct, fill = outcome_label)) +
+  geom_boxplot(show.legend = FALSE) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Measure Turnout by Outcome",
+    x = "Outcome",
+    y = "Total Votes"
+  ) +
+  theme_minimal()
+```
+
+
+
+## Average number of Words in Ballot Question vs. Turnout Rate 
+```{r}
+measures_2024 <- measures_2024 %>%
+  mutate(
+    turnout_pct = TOTAL / total_registered,
+    word_count = str_count(BALQUEST, "\\S+")
+  )
+
+avg_words <- measures_2024 %>%
+  filter(!is.na(CNTYNAME), !is.na(DATE), !is.na(turnout_pct), !is.na(word_count)) %>%
+  group_by(CNTYNAME, DATE) %>%
+  summarise(
+    avg_word_count = mean(word_count, na.rm = TRUE),
+    avg_turnout_pct = mean(turnout_pct, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Filter for one extreme outlier above 80
+avg_words_filtered <- avg_words %>%
+  filter(avg_word_count <= 80)
+
+ggplot(avg_words_filtered, aes(x = avg_word_count, y = avg_turnout_pct)) +
+  geom_point() +
+  geom_smooth() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Average Ballot Question Length and Turnout Rate",
+    x = "Average Number of Words in Ballot Questions",
+    y = "Average Turnout (% of Registered Voters)"
+  ) +
+  theme_minimal()
+```
+
+
+```{r}
+county_choice <- NULL
+place_choice  <- NULL
+date_choice   <- NULL
+
+plot3_df <- measures_2024
+
+if (!is.null(county_choice)) {
+  plot3_df <- plot3_df %>% filter(CNTYNAME == county_choice)
+}
+
+if (!is.null(place_choice)) {
+  plot3_df <- plot3_df %>% filter(PLACE == place_choice)
+}
+
+if (!is.null(date_choice)) {
+  plot3_df <- plot3_df %>% filter(DATE == date_choice)
+}
+
+plot3_df <- plot3_df %>%
+  filter(!is.na(turnout_pct), !is.na(LTR)) %>%
+  filter(str_detect(LTR, "^[A-Z]$")) %>%
+  mutate(ballot_position = factor(LTR, levels = LETTERS))
+
+avg_votes_by_position <- plot3_df %>%
+  group_by(ballot_position) %>%
+  summarise(avg_votes = mean(turnout_pct, na.rm = TRUE), .groups = "drop") %>%
+  filter(!is.na(ballot_position))
+
+ggplot(avg_votes_by_position, aes(x = ballot_position, y = avg_votes)) +
+  geom_col() +
+  labs(
+    title = "Ballot Position and Average Turnout Rate",
+    subtitle = "Average turnout rate by ballot position (A-Z) across all California Counties 2024",
+    x = "Ballot Position",
+    y = "Average Turnout Rate"
+  ) +
+  theme_minimal()
+
+```
+
+# County-Specific Case Studies 
+
+## Los Angeles and Alameda County 
+```{r}
+
+
+
+```
+
+
+## Marin County and Lassen County 
+```{r}
+marin_lassen <- measures_2024 %>%
+  filter(CNTYNAME %in% c("MARIN", "LOS ANGELES"),
+         JUR == 1) %>%   # ✅ keep only county-level measures
+  mutate(
+    turnout_pct = TOTAL / total_registered
+  ) %>%
+  filter(!is.na(turnout_pct), !is.na(word_count))
+
+ggplot(marin_lassen, aes(x = word_count, y = turnout_pct, color = CNTYNAME)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(
+    title = "Ballot Complexity and Turnout: Marin vs. Lassen Counties",
+    x = "Ballot Question Length (Word Count)",
+    y = "Turnout (% of Registered Voters)",
+    color = "County"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+measures_2024 %>%
+filter(CNTYNAME == "MARIN") %>%
+select(total_registered) %>%
+distinct()
+
+measures_2024 %>%
+  filter(CNTYNAME == "MARIN") %>%
+  select(TOTAL) %>%
+  summary()
+
+measures_2024 %>%
+  filter(CNTYNAME == "MARIN") %>%
+  mutate(turnout_pct = TOTAL / total_registered) %>%
+  select(TOTAL, total_registered, turnout_pct) %>%
+  head(10)
+```
