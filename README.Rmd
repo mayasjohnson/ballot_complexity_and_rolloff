@@ -1,0 +1,84 @@
+---
+title: "README Policy"
+output: html_document
+date: "2026-05-01"
+---
+
+#### Maya Johnson 
+
+# README: Ballot Complexity and Voter Participation Analysis
+
+## Overview
+
+This project examines whether ballot complexity influences voter participation and ballot outcomes using data from California’s 2024 local elections. The analysis evaluates relationships between ballot question length, turnout, ballot position, and passage rates, with a focus on identifying factors that can cause cognitive overload and shape voter behavior.
+
+## Data
+
+The analysis uses:
+
+* California Elections Data Archive (CEDA), 2024 Measures Dataset (ballot measures, outcomes, text)
+* California Voter Registration Data (2024) (registered voters by county on 11-05-2024)
+
+The datasets are merged by county to calculate turnout as a percentage of registered voters.
+
+The analysis is submitted under filename "Final Policy Analysis" as both an R Markdown (.rmd) file and a PDF of the Knit R Markdown (.pdf). 
+
+## Setup
+
+Before running the code:
+
+1. Update file paths (*CHANGE your_path_measures, your_path_voter_registration*) to local versions of the datasets.
+    - *your_path_measures* must contain local filepath of the *Measures2024.csv* file
+    - *your_path_voter_registration* must contain local filepath of the *Voter_registration_participation_2024_by_county.xlsx* file 
+    
+    Ex. your_path_measures = "/Users/mayajohnson/Desktop/Measures2024.csv"
+        your_path_voter_registration = "/Users/mayajohnson/Downloads/voter_registration_participation_2024_by_county.xlsx"
+      
+2. Install required packages:
+
+```r
+library(tidyverse)
+library(readxl)
+library(scales)
+library(stringr)
+library(readr)
+```
+
+## Methods
+
+The R script:
+
+- Cleans and merges data sets
+- Constructs key variables:
+
+  * 'turnout_pct` = votes / registered voters
+  * `word_count` = number of words in each ballot question
+  * `outcome_label`, `req_label`, and `jurisdiction`
+- Filters ballot positions (A–Z) to analyze roll-off
+- Produces visualizations comparing complexity, turnout, and outcomes
+
+## Analysis
+
+Key outputs include:
+
+- Pass vs. fail distribution
+- Passage rates by approval threshold and jurisdiction
+- Ballot complexity by outcome
+- Turnout rates by outcome
+- Complexity vs. turnout scatter plot
+- Ballot position vs. turnout (roll-off)
+- County-level case studies (e.g., Santa Clara vs. Tulare)
+
+## Notes
+
+- Turnout is measured as a percentage or rate (decimal 0-1 or percentage 0-100%), not raw votes, to allow accurate comparability.
+- Word count is used as a measurement for question complexity.
+- Non-standard ballot labels (e.g., AA, R3) are not included in plots to display true ballot order.
+- Some case study plots use standardized axes to allow for cross-county comparison.
+
+## Limitations
+
+The analysis uses aggregate data and cannot capture individual-level voting behavior. Additionally, word count does not fully measure complexity, and turnout is measured at the county level rather than for specific jurisdictions. Results are correlational and do not establish causality, and results are not nation-wide but are specific to the state of California, and specific counties/jurisdictions in parts of the analysis.
+
+## Tracking Changes 
+I used a github repository to track changes throughout my code: mayasjohnson/ballot_complexity_and_rolloff
